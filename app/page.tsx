@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getVisualizations, type Visualization } from "@/lib/visualizations";
 import { VizPreview } from "@/components/VizPreview";
+import BasketballLab from "@/components/BasketballLab";
 
 export default function Home() {
   const vizzes = getVisualizations();
@@ -39,7 +40,47 @@ export default function Home() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                EXPLORAR / 01
+                LABORATÓRIO / 01
+              </div>
+              <h2 className="mt-1 text-2xl font-semibold tracking-tight">
+                Experimentos interativos
+              </h2>
+              <p className="mt-2 max-w-2xl font-mono text-xs leading-5 text-zinc-500">
+                Simulações físicas com parâmetros ajustáveis e animação em
+                tempo real. Comece pelo primeiro experimento: o tiro livre de
+                basquete.
+              </p>
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
+              3 experimentos
+            </span>
+          </div>
+
+          <BasketballLab />
+
+          <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <PlaceholderCard
+              index="02"
+              glyph="?"
+              title="Em desenvolvimento"
+              category="Experimento 02"
+              description="Próximos experimentos de balística e movimento chegam em breve."
+            />
+            <PlaceholderCard
+              index="03"
+              glyph="?"
+              title="Em desenvolvimento"
+              category="Experimento 03"
+              description="Um espaço reservado para o terceiro experimento da seção."
+            />
+          </div>
+        </section>
+
+        <section className="mb-14">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                EXPLORAR / 02
               </div>
               <h2 className="mt-1 text-2xl font-semibold tracking-tight">
                 Galeria de visualizações
@@ -54,44 +95,6 @@ export default function Home() {
             {vizzes.map((viz) => (
               <GalleryCard key={viz.slug} viz={viz} />
             ))}
-          </div>
-        </section>
-
-        <section className="mt-2">
-          <div className="mb-8">
-            <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-              SOBRE / 02
-            </div>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-              Sobre a aplicação
-            </h2>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card
-              title="Visualização interativa"
-              description="Cada página combina um gráfico vetorial com controles que reparametrizam a equação em tempo real."
-            />
-            <Card
-              title="Gráficos em SVG"
-              description="Curvas desenhadas por pontos amostrados directamente da função, sem dependências externas."
-            />
-            <Card
-              title="Leitura numérica"
-              description="Painéis com os valores resultantes — período, fase, seno, cosseno e tangente — acompanham cada cena."
-            />
-            <Card
-              title="Navegação instantânea"
-              description="Transição entre o índice e as visualizações feita pelo App Router do Next.js, com pré-carregamento."
-            />
-            <Card
-              title="100% client-side"
-              description="Toda a computação acontece no navegador, sem API ou dependências externas."
-            />
-            <Card
-              title="Estética computacional"
-              description="Visual em preto e branco, tipografia monoespaçada e nomenclatura de laboratório numérico."
-            />
           </div>
         </section>
 
@@ -156,13 +159,36 @@ function GalleryCard({ viz }: { viz: Visualization }) {
   );
 }
 
-function Card({ title, description }: { title: string; description: string }) {
+function PlaceholderCard({
+  index,
+  glyph,
+  title,
+  category,
+  description,
+}: {
+  index: string;
+  glyph: string;
+  title: string;
+  category: string;
+  description: string;
+}) {
   return (
-    <div className="rounded-2xl border border-zinc-200 bg-zinc-50/60 p-6">
-      <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-        {title}
+    <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-6">
+      <div className="flex items-center gap-3">
+        <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 font-mono text-sm font-semibold text-zinc-400">
+          {glyph}
+        </span>
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+            CARD {index}/03 — {category}
+          </div>
+          <h3 className="mt-0.5 text-lg font-semibold">{title}</h3>
+        </div>
+        <span className="ml-auto rounded-md border border-zinc-200 px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-zinc-400">
+          em breve
+        </span>
       </div>
-      <p className="mt-3 text-sm leading-5 text-zinc-500">{description}</p>
+      <p className="font-mono text-xs leading-5 text-zinc-500">{description}</p>
     </div>
   );
 }
