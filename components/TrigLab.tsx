@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  FunctionSquare,
+  Grid2x2,
+  Hash,
+  Pause,
+  Play,
+  RotateCcw,
+  SlidersHorizontal,
+} from "lucide-react";
 import { PlotFrame } from "@/components/PlotFrame";
 import { UnitCircle } from "@/components/UnitCircle";
 import { buildPlotContent } from "@/lib/series";
@@ -64,9 +74,10 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
             </span>
             <Link
               href="/"
-              className="ml-auto font-mono text-xs uppercase tracking-wider text-zinc-400 transition hover:text-zinc-950"
+              className="ml-auto flex items-center gap-1.5 font-mono text-xs uppercase tracking-wider text-zinc-400 transition hover:text-zinc-950"
             >
-              ← Índice
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Índice
             </Link>
           </div>
 
@@ -89,6 +100,7 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
                 index="01"
                 title="Parâmetros"
                 note="Ajustes que reparametrizam a curva em tempo real."
+                icon={<SlidersHorizontal className="h-3.5 w-3.5" />}
               />
               <div className="space-y-5">
                 {(viz.kind === "sine" || viz.kind === "cosine") && (
@@ -175,6 +187,7 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
                     ? "Anime o parâmetro dinâmico ou redefina o estado."
                     : "Reinicie a visualização para o estado padrão."
                 }
+                icon={<Play className="h-3.5 w-3.5" />}
               />
               <div className="space-y-3">
                 {animated && (
@@ -182,14 +195,25 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
                     onClick={() => setPlaying((p) => !p)}
                     className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider text-white transition hover:bg-zinc-800"
                   >
-                    {playing ? "❚❚ Pausar animação" : "▶ Executar animação"}
+                    {playing ? (
+                      <>
+                        <Pause className="h-3.5 w-3.5" />
+                        Pausar animação
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3.5 w-3.5" />
+                        Executar animação
+                      </>
+                    )}
                   </button>
                 )}
                 <button
                   onClick={reset}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
                 >
-                  ↺ Redefinir
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Redefinir
                 </button>
               </div>
 
@@ -203,10 +227,9 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
 
           <div className="min-w-0 space-y-6">
             <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
-              <div className="border-b border-zinc-200 px-6 py-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                  EQUAÇÃO / 03
-                </div>
+              <div className="flex items-center gap-2 border-b border-zinc-200 px-6 py-4 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                <FunctionSquare className="h-3.5 w-3.5" />
+                EQUAÇÃO / 03
               </div>
               <div className="bg-zinc-950 px-6 py-10 text-white md:px-10">
                 <EquationTokens viz={viz} angle={angle} />
@@ -226,9 +249,10 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
             <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                    MALHA / 04
-                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                  <Grid2x2 className="h-3.5 w-3.5" />
+                  MALHA / 04
+                </div>
                   <p className="mt-1 font-semibold">Visualização da equação</p>
                 </div>
                 <span className="font-mono text-[9px] uppercase tracking-wider text-zinc-400">
@@ -253,9 +277,10 @@ export default function TrigLab({ viz }: { viz: Visualization }) {
             <section className="rounded-2xl border border-zinc-200">
               <div className="flex flex-col gap-4 border-b border-zinc-200 px-6 py-5 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                    VALORES / 05
-                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                  <Hash className="h-3.5 w-3.5" />
+                  VALORES / 05
+                </div>
                   <h2 className="mt-1 font-semibold">Leitura numérica</h2>
                 </div>
                 <div className="flex items-center gap-2 font-mono text-xs">
@@ -459,14 +484,17 @@ function SectionTitle({
   index,
   title,
   note,
+  icon,
 }: {
   index: string;
   title: string;
   note: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <div className="mb-6">
-      <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+      <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+        {icon}
         {index}
       </div>
       <h2 className="mt-1 text-lg font-semibold">{title}</h2>

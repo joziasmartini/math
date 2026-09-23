@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Play, RotateCcw } from "lucide-react";
 
 const G = 9.81;
 const FORCE_MIN = 5;
@@ -286,13 +287,15 @@ export default function BasketballLab() {
                 disabled={animating}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-950 px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                ▶ Atirar
+                <Play className="h-3.5 w-3.5" />
+                Atirar
               </button>
               <button
                 onClick={reset}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-3 font-mono text-xs font-medium uppercase tracking-wider transition hover:border-zinc-950 hover:bg-zinc-950 hover:text-white"
               >
-                ↺ Resetar
+                <RotateCcw className="h-3.5 w-3.5" />
+                Resetar
               </button>
             </div>
 
@@ -427,7 +430,7 @@ export default function BasketballLab() {
                 fontSize="9"
                 fill="#52525b"
               >
-                <text x="10" y="16">cesta · {RIM_Y} m</text>
+                <text x="10" y={SVG_H - 24}>cesta · {RIM_Y} m</text>
                 <text x="10" y={SVG_H - 10}>x [m]</text>
               </g>
             </svg>
