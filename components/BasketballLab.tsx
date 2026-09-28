@@ -31,6 +31,24 @@ const NET_BOTTOM = RIM_Y - 0.52;
 const NET_TAPER = 0.6;
 const NET_STRANDS = 7;
 
+/* Física de colisão -------------------------------------------------------- */
+
+const BALL_W = BALL_R / (SVG_W / WORLD_W);
+const RIM_TUBE = 0.05;
+const RIM_EDGES = [
+  { x: RIM_FRONT, y: RIM_Y },
+  { x: RIM_BACK, y: RIM_Y },
+];
+const E_RIM = 0.55;
+const F_RIM = 0.7;
+const E_BOARD = 0.6;
+const F_BOARD = 0.85;
+const REST_VN = 0.5;
+const HIT_CD = 0.08;
+const BOARD_SLOT = 2;
+const SIM_DT = 1 / 240;
+const MAX_T = 4.5;
+
 interface Flight {
   vx: number;
   vy: number;
@@ -41,6 +59,19 @@ interface Point {
   y: number;
 }
 
+interface Sim {
+  t: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  scored: boolean;
+  bounces: number;
+  impacts: Point[];
+  hitAt: number[];
+  done: boolean;
+}
+
 function wx(x: number) {
   return (x / WORLD_W) * SVG_W;
 }
@@ -49,26 +80,132 @@ function wy(y: number) {
   return SVG_H - (y / WORLD_H) * SVG_H;
 }
 
-function posAt(f: Flight, tt: number): Point {
+function createSim(f: Flight): Sim {
   return {
-    x: RELEASE.x + f.vx * tt,
-    y: RELEASE.y + f.vy * tt - 0.5 * G * tt * tt,
+    t: 0,
+    x: RELEASE.x,
+    y: RELEASE.y,
+    vx: f.vx,
+    vy: f.vy,
+    scored: false,
+    bounces: 0,
+    impacts: [],
+    hitAt: [-Infinity, -Infinity, -Infinity],
+    done: false,
   };
 }
 
-/** Instante em que a bola atravessa o plano do aro descendo (raiz maior). */
-function rimCrossTime(f: Flight) {
-  const disc = f.vy * f.vy + 2 * G * (RELEASE.y - RIM_Y);
-  if (disc < 0) return Infinity;
-  const t = (f.vy + Math.sqrt(disc)) / G;
-  return t > 0 ? t : Infinity;
+/**
+ * Resolve o contato com um obstáculo estático: normal com restituição,
+ * tangencial com atrito. Contato lento não quica (a bola encosta e escorrega),
+ * e o mesmo obstáculo não conta dois quiques em sequência.
+ */
+function bounce(
+  sim: Sim,
+  nx: number,
+  ny: number,
+  restitution: number,
+  friction: number,
+  slot: number
+) {
+  const vn = sim.vx * nx + sim.vy * ny;
+  if (vn >= 0) return false;
+
+  const tx = -ny;
+  const ty = nx;
+  const vt = sim.vx * tx + sim.vy * ty;
+
+  if (-vn < REST_VN) {
+    sim.vx = tx * vt;
+    sim.vy = ty * vt;
+    return false;
+  }
+  if (sim.t - sim.hitAt[slot] < HIT_CD) return false;
+
+  sim.hitAt[slot] = sim.t;
+  const rn = -vn * restitution;
+  const rt = vt * (1 - friction);
+  sim.vx = nx * rn + tx * rt;
+  sim.vy = ny * rn + ty * rt;
+  return true;
 }
 
-/** Cesta só existe se a bola cruzar o aro por dentro — não basta encostar na rede. */
-function scores(f: Flight) {
-  const t = rimCrossTime(f);
-  if (!Number.isFinite(t)) return false;
-  return posAt(f, t).x > RIM_INNER_F && posAt(f, t).x < RIM_INNER_B;
+/**
+ * Avança a bola em micro-passos. Entre impactos o trecho continua sendo uma
+ * parábola; ao tocar aro ou quadro, o trecho é fechado e nasce outro com a
+ * velocidade refletida. A cesta é creditada ao cruzar o plano do aro por
+ * dentro, nunca por encostar na rede.
+ */
+function advance(sim: Sim, dt: number, onStep?: (p: Point) => void) {
+  let left = dt;
+  while (left > 1e-9 && !sim.done) {
+    const h = Math.min(SIM_DT, left);
+    left -= h;
+
+    const px = sim.x;
+    const py = sim.y;
+
+    sim.vy -= G * h;
+    sim.x += sim.vx * h;
+    sim.y += sim.vy * h;
+    sim.t += h;
+
+    let contact = false;
+    const reach = BALL_W + RIM_TUBE;
+    for (let i = 0; i < RIM_EDGES.length; i++) {
+      const e = RIM_EDGES[i];
+      const dx = sim.x - e.x;
+      const dy = sim.y - e.y;
+      const d = Math.hypot(dx, dy);
+      if (d >= reach) continue;
+      const nx = d > 1e-6 ? dx / d : 0;
+      const ny = d > 1e-6 ? dy / d : 1;
+      sim.x = e.x + nx * reach;
+      sim.y = e.y + ny * reach;
+      contact = true;
+      if (bounce(sim, nx, ny, E_RIM, F_RIM, i)) {
+        sim.bounces++;
+        sim.impacts.push({ x: e.x, y: e.y });
+      }
+    }
+
+    if (
+      sim.vx > 0 &&
+      sim.x + BALL_W > BOARD_FACE &&
+      sim.y > BOARD_BOT &&
+      sim.y < BOARD_TOP
+    ) {
+      sim.x = BOARD_FACE - BALL_W;
+      contact = true;
+      if (bounce(sim, -1, 0, E_BOARD, F_BOARD, BOARD_SLOT)) {
+        sim.bounces++;
+        sim.impacts.push({ x: BOARD_FACE, y: sim.y });
+      }
+    }
+
+    if (!contact && py > RIM_Y && sim.y <= RIM_Y) {
+      const k = (py - RIM_Y) / (py - sim.y);
+      const crossX = px + (sim.x - px) * k;
+      if (crossX > RIM_INNER_F && crossX < RIM_INNER_B) sim.scored = true;
+    }
+
+    if (sim.y <= 0) {
+      sim.y = 0;
+      sim.done = true;
+    }
+
+    onStep?.(sim);
+  }
+}
+
+/** Roda a simulação inteira — alimenta a previsão e a linha tracejada. */
+function simulate(f: Flight) {
+  const sim = createSim(f);
+  const points: Point[] = [];
+  advance(sim, MAX_T, (p) => {
+    if (p.y > 0) points.push({ x: p.x, y: p.y });
+  });
+  return { sim, points };
 }
 
 function netBottomX(x: number) {
@@ -80,22 +217,24 @@ export default function BasketballLab() {
   const [angle, setAngle] = useState(50);
   const [t, setT] = useState(0);
   const [trail, setTrail] = useState<Point[]>([]);
-  const [frozen, setFrozen] = useState<Flight | null>(null);
+  const [frame, setFrame] = useState<Point>(RELEASE);
+  const [speed, setSpeed] = useState(0);
+  const [bounces, setBounces] = useState(0);
+  const [impacts, setImpacts] = useState<Point[]>([]);
   const [scored, setScored] = useState(false);
   const [ended, setEnded] = useState(false);
   const [animating, setAnimating] = useState(false);
 
-  const flightRef = useRef<Flight>({ vx: 0, vy: 0 });
+  const simRef = useRef<Sim>(createSim({ vx: 0, vy: 0 }));
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
-  const crossTimeRef = useRef(Infinity);
+  const publishedRef = useRef(0);
 
   const v0 = useMemo(() => FORCE_MIN + force * (FORCE_MAX - FORCE_MIN), [force]);
   const theta = (angle * Math.PI) / 180;
   const vx = useMemo(() => v0 * Math.cos(theta), [v0, theta]);
   const vy = useMemo(() => v0 * Math.sin(theta), [v0, theta]);
 
-  const tRef = useRef(0);
   const timeOfFlight = useMemo(() => {
     const d = Math.sqrt(vy * vy + 2 * G * RELEASE.y);
     return (vy + d) / G;
@@ -104,49 +243,51 @@ export default function BasketballLab() {
   const range = useMemo(() => RELEASE.x + vx * timeOfFlight, [vx, timeOfFlight]);
   const maxHeight = useMemo(() => RELEASE.y + (vy * vy) / (2 * G), [vy]);
 
-  const predicted = useMemo(() => scores({ vx, vy }), [vx, vy]);
+  const preview = useMemo(() => simulate({ vx, vy }), [vx, vy]);
+  const predicted = preview.sim.scored;
 
   const predictedPath = useMemo(() => {
-    let d = "";
-    const N = 200;
-    for (let i = 0; i <= N; i++) {
-      const tt = (i / N) * timeOfFlight;
-      const p = posAt({ vx, vy }, tt);
-      if (p.y < 0) break;
-      d += `${i === 0 ? "M" : " L"}${wx(p.x).toFixed(1)} ${wy(p.y).toFixed(1)}`;
+    const { points } = preview;
+    if (points.length === 0) return "";
+    const stride = Math.max(1, Math.round(points.length / 220));
+    const sampled: Point[] = [];
+    for (let i = 0; i < points.length; i += stride) sampled.push(points[i]);
+    if (sampled[sampled.length - 1] !== points[points.length - 1]) {
+      sampled.push(points[points.length - 1]);
     }
-    return d;
-  }, [vx, vy, timeOfFlight]);
+    return sampled
+      .map((p, i) => `${i === 0 ? "M" : " L"}${wx(p.x).toFixed(1)} ${wy(p.y).toFixed(1)}`)
+      .join("");
+  }, [preview]);
 
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const display = frozen ? posAt(frozen, t) : RELEASE;
-  const speed = frozen ? Math.hypot(frozen.vx, frozen.vy - G * t) : v0;
-  const spinDeg = frozen ? ((display.x - RELEASE.x) * 2.6 * 180) / Math.PI : 0;
+  const display = animating || ended ? frame : RELEASE;
+  const spinDeg = animating || ended ? ((frame.x - RELEASE.x) * 2.6 * 180) / Math.PI : 0;
 
   function tick(now: number) {
-    const f = flightRef.current;
+    const sim = simRef.current;
     const last = lastTsRef.current ?? now;
     const delta = Math.min((now - last) / 1000, 0.05);
     lastTsRef.current = now;
-    const next = tRef.current + delta;
 
-    const p = posAt(f, next);
+    advance(sim, delta);
 
-    if (crossTimeRef.current <= next) {
-      crossTimeRef.current = Infinity;
-      if (scores(f)) setScored(true);
+    if (sim.scored) setScored(true);
+    if (sim.bounces > publishedRef.current) {
+      publishedRef.current = sim.bounces;
+      setBounces(sim.bounces);
+      setImpacts([...sim.impacts]);
     }
 
-    tRef.current = next;
-    setT(next);
-    setTrail((list) => [...list, p]);
+    setT(sim.t);
+    setFrame({ x: sim.x, y: sim.y });
+    setSpeed(Math.hypot(sim.vx, sim.vy));
+    setTrail((list) => [...list, { x: sim.x, y: sim.y }]);
 
-    const onGround = p.y <= 0.02;
-    const done = onGround || next >= elapsedLimit(f);
-    if (!done) {
+    if (!sim.done && sim.t < MAX_T) {
       rafRef.current = requestAnimationFrame(tick);
     } else {
       setAnimating(false);
@@ -154,22 +295,18 @@ export default function BasketballLab() {
     }
   }
 
-  function elapsedLimit(f: Flight) {
-    const d = Math.sqrt(f.vy * f.vy + 2 * G * RELEASE.y);
-    return (f.vy + d) / G + 0.5;
-  }
-
   function launch() {
     if (animating) return;
-    const f: Flight = { vx, vy };
-    flightRef.current = f;
-    crossTimeRef.current = rimCrossTime(f);
-    setFrozen(f);
+    simRef.current = createSim({ vx, vy });
     setTrail([]);
+    setFrame({ ...RELEASE });
+    setSpeed(v0);
+    setBounces(0);
+    setImpacts([]);
     setScored(false);
     setEnded(false);
-    tRef.current = 0;
     lastTsRef.current = null;
+    publishedRef.current = 0;
     setT(0);
     setAnimating(true);
     rafRef.current = requestAnimationFrame(tick);
@@ -179,22 +316,25 @@ export default function BasketballLab() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     lastTsRef.current = null;
-    crossTimeRef.current = Infinity;
+    simRef.current = createSim({ vx: 0, vy: 0 });
     setAnimating(false);
-    setFrozen(null);
+    setFrame({ ...RELEASE });
+    setSpeed(0);
+    setBounces(0);
+    setImpacts([]);
     setTrail([]);
     setScored(false);
     setEnded(false);
-    tRef.current = 0;
     setT(0);
+    publishedRef.current = 0;
   }
 
-  const status = animating
-    ? scored
-      ? "CESTA ✓"
-      : "VOANDO"
-    : scored
-      ? "CESTA ✓"
+  const status = scored
+    ? "CESTA ✓"
+    : animating
+      ? bounces > 0
+        ? "QUICOU"
+        : "VOANDO"
       : ended
         ? "ERROU"
         : "PRONTO";
@@ -268,7 +408,7 @@ export default function BasketballLab() {
               <Readout
                 label="Alcance R"
                 value={`${range.toFixed(2)} m`}
-                sub={`Q = v₀²·sen(2θ)/g`}
+                sub={`Q = v₀²·sen(2θ)/g · voo livre`}
               />
               <Readout
                 label="Altura máx H"
@@ -280,7 +420,7 @@ export default function BasketballLab() {
               />
               <Readout
                 label="Resultado previsto"
-                value={predicted ? "cesta ✓" : "fora"}
+                value={predicted ? "cesta ✓" : preview.sim.bounces > 0 ? "fora (quique)" : "fora"}
                 sub="apenas se cruzar o aro por dentro"
               />
             </div>
@@ -370,6 +510,18 @@ export default function BasketballLab() {
                 strokeLinecap="round"
               />
 
+              {impacts.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={wx(p.x)}
+                  cy={wy(p.y)}
+                  r="4.5"
+                  fill="none"
+                  stroke="#09090b"
+                  strokeWidth="1.75"
+                />
+              ))}
+
               <path
                 d={predictedPath}
                 fill="none"
@@ -442,8 +594,15 @@ export default function BasketballLab() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 md:grid-cols-4">
-            <SceneStat label="Trajetória" value={scored ? "cesta" : "balística"} />
+          <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 md:grid-cols-5">
+            <SceneStat
+              label="Trajetória"
+              value={scored ? "cesta" : bounces > 0 ? "com quique" : "balística"}
+            />
+            <SceneStat
+              label="Quiques"
+              value={bounces === 0 ? "nenhum" : `${bounces} no aro/quadro`}
+            />
             <SceneStat label="Rastro" value={`${trail.length} pontos`} />
             <SceneStat label="Força" value={`${v0.toFixed(2)} m/s`} />
             <SceneStat label="Ângulo" value={`${angle}°`} />
