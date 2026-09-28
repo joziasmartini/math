@@ -15,8 +15,21 @@ const HOOP_X = 8.45;
 const RIM_FRONT = 8.0;
 const RIM_BACK = 8.85;
 const RIM_Y = 3.05;
-const CATCH = 0.42;
 const BALL_R = 12;
+
+const RIM_MID = (RIM_FRONT + RIM_BACK) / 2;
+const RIM_INNER_F = RIM_FRONT + 0.06;
+const RIM_INNER_B = RIM_BACK - 0.06;
+
+const BOARD_FACE = 8.85;
+const BOARD_BACK = 9.62;
+const BOARD_BOT = 2.9;
+const BOARD_TOP = 4.42;
+const POST_W = 0.24;
+
+const NET_BOTTOM = RIM_Y - 0.52;
+const NET_TAPER = 0.6;
+const NET_STRANDS = 7;
 
 interface Flight {
   vx: number;
@@ -43,15 +56,23 @@ function posAt(f: Flight, tt: number): Point {
   };
 }
 
-function willScore(f: Flight) {
-  const yLo = RIM_Y - CATCH;
-  const yHi = RIM_Y + CATCH;
-  const tApex = f.vy / G;
-  const tF = (RIM_FRONT - RELEASE.x) / f.vx;
-  const tB = (RIM_BACK - RELEASE.x) / f.vx;
-  const t0 = Math.max(tF, Math.min(tApex, tB));
-  if (t0 >= tB) return false;
-  return posAt(f, t0).y >= yLo && posAt(f, tB).y <= yHi;
+/** Instante em que a bola atravessa o plano do aro descendo (raiz maior). */
+function rimCrossTime(f: Flight) {
+  const disc = f.vy * f.vy + 2 * G * (RELEASE.y - RIM_Y);
+  if (disc < 0) return Infinity;
+  const t = (f.vy + Math.sqrt(disc)) / G;
+  return t > 0 ? t : Infinity;
+}
+
+/** Cesta só existe se a bola cruzar o aro por dentro — não basta encostar na rede. */
+function scores(f: Flight) {
+  const t = rimCrossTime(f);
+  if (!Number.isFinite(t)) return false;
+  return posAt(f, t).x > RIM_INNER_F && posAt(f, t).x < RIM_INNER_B;
+}
+
+function netBottomX(x: number) {
+  return RIM_MID + (x - RIM_MID) * NET_TAPER;
 }
 
 export default function BasketballLab() {
@@ -67,7 +88,7 @@ export default function BasketballLab() {
   const flightRef = useRef<Flight>({ vx: 0, vy: 0 });
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
-  const pendingScoreRef = useRef(false);
+  const crossTimeRef = useRef(Infinity);
 
   const v0 = useMemo(() => FORCE_MIN + force * (FORCE_MAX - FORCE_MIN), [force]);
   const theta = (angle * Math.PI) / 180;
@@ -83,7 +104,7 @@ export default function BasketballLab() {
   const range = useMemo(() => RELEASE.x + vx * timeOfFlight, [vx, timeOfFlight]);
   const maxHeight = useMemo(() => RELEASE.y + (vy * vy) / (2 * G), [vy]);
 
-  const predicted = useMemo(() => willScore({ vx, vy }), [vx, vy]);
+  const predicted = useMemo(() => scores({ vx, vy }), [vx, vy]);
 
   const predictedPath = useMemo(() => {
     let d = "";
@@ -113,18 +134,10 @@ export default function BasketballLab() {
     const next = tRef.current + delta;
 
     const p = posAt(f, next);
-    const vyT = f.vy - G * next;
 
-    if (
-      pendingScoreRef.current &&
-      p.x >= RIM_FRONT &&
-      p.x <= RIM_BACK &&
-      vyT < 0 &&
-      p.y >= RIM_Y - CATCH &&
-      p.y <= RIM_Y + CATCH
-    ) {
-      pendingScoreRef.current = false;
-      setScored(true);
+    if (crossTimeRef.current <= next) {
+      crossTimeRef.current = Infinity;
+      if (scores(f)) setScored(true);
     }
 
     tRef.current = next;
@@ -150,7 +163,7 @@ export default function BasketballLab() {
     if (animating) return;
     const f: Flight = { vx, vy };
     flightRef.current = f;
-    pendingScoreRef.current = willScore(f);
+    crossTimeRef.current = rimCrossTime(f);
     setFrozen(f);
     setTrail([]);
     setScored(false);
@@ -166,7 +179,7 @@ export default function BasketballLab() {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
     lastTsRef.current = null;
-    pendingScoreRef.current = false;
+    crossTimeRef.current = Infinity;
     setAnimating(false);
     setFrozen(null);
     setTrail([]);
@@ -268,7 +281,7 @@ export default function BasketballLab() {
               <Readout
                 label="Resultado previsto"
                 value={predicted ? "cesta ✓" : "fora"}
-                sub={`banda do aro ±${CATCH.toFixed(2)} m`}
+                sub="apenas se cruzar o aro por dentro"
               />
             </div>
           </div>
@@ -365,18 +378,7 @@ export default function BasketballLab() {
                 strokeDasharray="6 6"
               />
 
-              <g>
-                <rect x={wx(8.85)} y={wy(4.05)} width={wx(9.4) - wx(8.85)} height={wy(2.95) - wy(4.05)} rx="2" fill="#ffffff" stroke="#09090b" strokeWidth="2" />
-                <rect x={wx(9.27)} y={wy(0)} width={6} height={wy(0) - wy(4.05)} fill="none" stroke="#09090b" strokeWidth="2" />
-                <line x1={wx(8.0)} y1={wy(RIM_Y)} x2={wx(8.85)} y2={wy(RIM_Y)} stroke="#09090b" strokeWidth="6" />
-                <g stroke="#71717a" strokeWidth="1.75">
-                  <line x1={wx(8.0)} y1={wy(RIM_Y)} x2={wx(8.13)} y2={wy(2.55)} />
-                  <line x1={wx(8.85)} y1={wy(RIM_Y)} x2={wx(8.85)} y2={wy(2.55)} />
-                  <line x1={wx(8.425)} y1={wy(RIM_Y)} x2={wx(8.425)} y2={wy(2.55)} />
-                  <line x1={wx(8.0)} y1={wy(RIM_Y)} x2={wx(8.85)} y2={wy(2.55)} />
-                  <line x1={wx(8.85)} y1={wy(RIM_Y)} x2={wx(8.0)} y2={wy(2.55)} />
-                </g>
-              </g>
+              <Basket scored={scored} />
 
               <g stroke="#09090b" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" fill="none">
                 <circle cx={wx(1.78)} cy={wy(1.845)} r="12.8" fill="#ffffff" />
@@ -449,6 +451,178 @@ export default function BasketballLab() {
         </div>
       </div>
     </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Basket                                                                      */
+/* -------------------------------------------------------------------------- */
+
+function Basket({ scored }: { scored: boolean }) {
+  const postL = BOARD_BACK - POST_W;
+  const plateL = postL - 0.7;
+  const plateR = BOARD_BACK + 0.34;
+  const plateTop = wy(0.11);
+
+  const rimY = wy(RIM_Y);
+  const botY = wy(NET_BOTTOM);
+  const midX = wx(RIM_MID);
+
+  const strands = Array.from({ length: NET_STRANDS }, (_, i) => {
+    const fx = RIM_FRONT + ((RIM_BACK - RIM_FRONT) * i) / (NET_STRANDS - 1);
+    const p0 = { x: wx(fx), y: rimY };
+    const p1 = { x: wx(netBottomX(fx)), y: botY };
+    const c = {
+      x: midX + ((p0.x + p1.x) / 2 - midX) * 0.88,
+      y: (rimY + botY) / 2,
+    };
+    return { p0, c, p1 };
+  });
+
+  const at = (s: { p0: Point; c: Point; p1: Point }, u: number): Point => {
+    const k = 1 - u;
+    return {
+      x: k * k * s.p0.x + 2 * k * u * s.c.x + u * u * s.p1.x,
+      y: k * k * s.p0.y + 2 * k * u * s.c.y + u * u * s.p1.y,
+    };
+  };
+
+  const left = strands[0];
+  const right = strands[strands.length - 1];
+  const ring = (u: number) => {
+    const a = at(left, u);
+    const b = at(right, u);
+    return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} Q${((a.x + b.x) / 2).toFixed(1)} ${(
+      (a.y + b.y) / 2 +
+      7
+    ).toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+  };
+
+  return (
+    <g strokeLinejoin="round" strokeLinecap="round">
+      <ellipse
+        cx={wx(postL + POST_W / 2)}
+        cy={wy(0.03)}
+        rx={(wx(plateR) - wx(plateL)) / 2}
+        ry="5"
+        fill="#09090b"
+        opacity="0.08"
+      />
+
+      <rect
+        x={wx(plateL)}
+        y={plateTop}
+        width={wx(plateR) - wx(plateL)}
+        height={wy(0) - plateTop}
+        rx="2"
+        fill="#e4e4e7"
+        stroke="#09090b"
+        strokeWidth="2"
+      />
+
+      <g fill="#f4f4f5" stroke="#09090b" strokeWidth="2">
+        <path
+          d={`M${wx(postL).toFixed(1)} ${wy(1.02).toFixed(1)} L${wx(
+            plateL + 0.12
+          ).toFixed(1)} ${wy(0.11).toFixed(1)} L${wx(postL).toFixed(1)} ${wy(
+            0.11
+          ).toFixed(1)} Z`}
+        />
+        <path
+          d={`M${wx(BOARD_BACK).toFixed(1)} ${wy(0.78).toFixed(1)} L${wx(
+            plateR - 0.1
+          ).toFixed(1)} ${wy(0.11).toFixed(1)} L${wx(BOARD_BACK).toFixed(
+            1
+          )} ${wy(0.11).toFixed(1)} Z`}
+        />
+      </g>
+
+      <rect
+        x={wx(postL)}
+        y={wy(BOARD_TOP)}
+        width={wx(BOARD_BACK) - wx(postL)}
+        height={wy(0) - wy(BOARD_TOP)}
+        fill="#fafafa"
+        stroke="#09090b"
+        strokeWidth="2.5"
+      />
+      <line
+        x1={wx(postL) + 4.5}
+        y1={wy(0.5)}
+        x2={wx(postL) + 4.5}
+        y2={wy(BOARD_TOP - 0.25)}
+        stroke="#d4d4d8"
+        strokeWidth="3"
+      />
+
+      <rect
+        x={wx(BOARD_FACE)}
+        y={wy(BOARD_TOP)}
+        width={wx(BOARD_BACK) - wx(BOARD_FACE)}
+        height={wy(BOARD_BOT) - wy(BOARD_TOP)}
+        rx="2"
+        fill="#ffffff"
+        stroke="#09090b"
+        strokeWidth="2.5"
+      />
+
+      <path
+        d={`M${wx(BOARD_FACE).toFixed(1)} ${wy(RIM_Y + 0.22).toFixed(1)} L${wx(
+          BOARD_FACE - 0.36
+        ).toFixed(1)} ${wy(RIM_Y + 0.05).toFixed(1)} L${wx(
+          BOARD_FACE
+        ).toFixed(1)} ${wy(RIM_Y + 0.05).toFixed(1)} Z`}
+        fill="#09090b"
+      />
+
+      <g fill="none" stroke="#a1a1aa" strokeWidth="1.5">
+        {strands.map((s, i) => (
+          <path
+            key={i}
+            d={`M${s.p0.x.toFixed(1)} ${s.p0.y.toFixed(1)} Q${s.c.x.toFixed(
+              1
+            )} ${s.c.y.toFixed(1)} ${s.p1.x.toFixed(1)} ${s.p1.y.toFixed(1)}`}
+          />
+        ))}
+        <path d={ring(0.36)} />
+        <path d={ring(0.68)} />
+      </g>
+
+      <line
+        x1={wx(RIM_FRONT)}
+        y1={rimY}
+        x2={wx(RIM_BACK)}
+        y2={rimY}
+        stroke="#09090b"
+        strokeWidth="6.5"
+        strokeLinecap="round"
+      />
+      <rect
+        x={wx(BOARD_FACE - 0.02)}
+        y={wy(RIM_Y + 0.15)}
+        width={wx(BOARD_FACE + 0.09) - wx(BOARD_FACE - 0.02)}
+        height={wy(RIM_Y - 0.11) - wy(RIM_Y + 0.15)}
+        rx="1.5"
+        fill="#09090b"
+      />
+
+      {scored && (
+        <text
+          x={midX}
+          y={wy(RIM_Y + 0.78)}
+          textAnchor="middle"
+          fontFamily="var(--font-geist-mono), ui-monospace, monospace"
+          fontSize="11"
+          fontWeight="600"
+          fill="#09090b"
+          stroke="#ffffff"
+          strokeWidth="3.5"
+          paintOrder="stroke"
+        >
+          cesta ✓
+        </text>
+      )}
+    </g>
   );
 }
 
