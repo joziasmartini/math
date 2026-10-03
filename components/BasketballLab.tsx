@@ -219,18 +219,23 @@ export default function BasketballLab() {
   const [trail, setTrail] = useState<Point[]>([]);
   const [frame, setFrame] = useState<Point>(RELEASE);
   const [speed, setSpeed] = useState(0);
+  const displaySpeed = Math.round(speed * 100) / 100;
   const [bounces, setBounces] = useState(0);
   const [impacts, setImpacts] = useState<Point[]>([]);
   const [scored, setScored] = useState(false);
   const [ended, setEnded] = useState(false);
   const [animating, setAnimating] = useState(false);
+  const [showTrajectory, setShowTrajectory] = useState(false);
 
   const simRef = useRef<Sim>(createSim({ vx: 0, vy: 0 }));
   const rafRef = useRef<number | null>(null);
   const lastTsRef = useRef<number | null>(null);
   const publishedRef = useRef(0);
 
-  const v0 = useMemo(() => FORCE_MIN + force * (FORCE_MAX - FORCE_MIN), [force]);
+  const v0 = useMemo(() => {
+    const raw = FORCE_MIN + force * (FORCE_MAX - FORCE_MIN);
+    return Math.round(raw * 100) / 100;
+  }, [force]);
   const theta = (angle * Math.PI) / 180;
   const vx = useMemo(() => v0 * Math.cos(theta), [v0, theta]);
   const vy = useMemo(() => v0 * Math.sin(theta), [v0, theta]);
@@ -265,7 +270,9 @@ export default function BasketballLab() {
   }, []);
 
   const display = animating || ended ? frame : RELEASE;
-  const spinDeg = animating || ended ? ((frame.x - RELEASE.x) * 2.6 * 180) / Math.PI : 0;
+  const displayX = Math.round(display.x * 100) / 100;
+  const displayY = Math.round(display.y * 100) / 100;
+  const spinDeg = animating || ended ? ((displayX - RELEASE.x) * 2.6 * 180) / Math.PI : 0;
 
   function tick(now: number) {
     const sim = simRef.current;
@@ -375,13 +382,13 @@ export default function BasketballLab() {
 
             <div className="space-y-5">
               <Slider
-                label="Força"
+                label="Velocidade"
                 value={force}
                 min={0}
                 max={1}
                 step={0.01}
                 onChange={setForce}
-                format={() => `${v0} m/s`}
+                format={() => `${v0.toFixed(2)} m/s`}
               />
               <Slider
                 label="Ângulo (θ)"
@@ -401,6 +408,22 @@ export default function BasketballLab() {
                 TRAJETÓRIA PREVISTA
               </div>
               <h3 className="mt-1 text-sm font-semibold">Fórmulas do lançamento</h3>
+            </div>
+
+            <div className="mb-4 flex items-center gap-2">
+              <input
+                id="show-trajectory"
+                type="checkbox"
+                checked={showTrajectory}
+                onChange={(e) => setShowTrajectory(e.target.checked)}
+                className="h-4 w-4 cursor-pointer accent-zinc-950"
+              />
+              <label
+                htmlFor="show-trajectory"
+                className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-zinc-500"
+              >
+                Mostrar trajetória prevista
+              </label>
             </div>
 
             <div className="space-y-2.5 font-mono text-xs">
@@ -454,7 +477,7 @@ export default function BasketballLab() {
 
             <div className="my-6 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200">
               <SummaryStat label="Estado" value={status} />
-              <SummaryStat label="Força" value={v0.toFixed(1)} />
+              <SummaryStat label="Velocidade" value={`${v0.toFixed(2)} m/s`} />
               <SummaryStat label="Ângulo" value={`${angle}°`} />
             </div>
           </div>
@@ -522,13 +545,15 @@ export default function BasketballLab() {
                 />
               ))}
 
-              <path
-                d={predictedPath}
-                fill="none"
-                stroke="#a1a1aa"
-                strokeWidth="1.25"
-                strokeDasharray="6 6"
-              />
+              {showTrajectory && (
+                <path
+                  d={predictedPath}
+                  fill="none"
+                  stroke="#a1a1aa"
+                  strokeWidth="1.25"
+                  strokeDasharray="6 6"
+                />
+              )}
 
               <Basket scored={scored} />
 
@@ -589,9 +614,9 @@ export default function BasketballLab() {
               </g>
             </svg>
 
-            <div className="absolute left-3 top-3 rounded-md border border-zinc-200 bg-white/85 px-2 py-1 font-mono text-[10px] text-zinc-600 backdrop-blur">
-              t = {t.toFixed(2)}s · x = {display.x.toFixed(2)}m · y = {display.y.toFixed(2)}m · v = {speed.toFixed(2)} m/s
-            </div>
+              <div className="absolute left-3 top-3 rounded-md border border-zinc-200 bg-white/85 px-2 py-1 font-mono text-[10px] text-zinc-600 backdrop-blur">
+                t = {t.toFixed(2)}s · x = {displayX.toFixed(2)}m · y = {displayY.toFixed(2)}m · v = {displaySpeed.toFixed(2)} m/s
+              </div>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 md:grid-cols-5">
@@ -604,7 +629,7 @@ export default function BasketballLab() {
               value={bounces === 0 ? "nenhum" : `${bounces} no aro/quadro`}
             />
             <SceneStat label="Rastro" value={`${trail.length} pontos`} />
-            <SceneStat label="Força" value={`${v0.toFixed(2)} m/s`} />
+            <SceneStat label="Velocidade" value={`${v0.toFixed(2)} m/s`} />
             <SceneStat label="Ângulo" value={`${angle}°`} />
           </div>
         </div>
