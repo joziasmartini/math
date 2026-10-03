@@ -254,13 +254,7 @@ export default function BasketballLab() {
   const predictedPath = useMemo(() => {
     const { points } = preview;
     if (points.length === 0) return "";
-    const stride = Math.max(1, Math.round(points.length / 220));
-    const sampled: Point[] = [];
-    for (let i = 0; i < points.length; i += stride) sampled.push(points[i]);
-    if (sampled[sampled.length - 1] !== points[points.length - 1]) {
-      sampled.push(points[points.length - 1]);
-    }
-    return sampled
+    return points
       .map((p, i) => `${i === 0 ? "M" : " L"}${wx(p.x).toFixed(1)} ${wy(p.y).toFixed(1)}`)
       .join("");
   }, [preview]);
