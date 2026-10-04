@@ -404,7 +404,7 @@ export default function BasketballLab() {
               <h3 className="mt-1 text-sm font-semibold">Fórmulas do lançamento</h3>
             </div>
 
-            <div className="mb-4 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <input
                 id="show-trajectory"
                 type="checkbox"
@@ -418,28 +418,6 @@ export default function BasketballLab() {
               >
                 Mostrar trajetória prevista
               </label>
-            </div>
-
-            <div className="space-y-2.5 font-mono text-xs">
-              <Readout label="Velocidade v₀" value={`${v0.toFixed(2)} m/s`} />
-              <Readout
-                label="Alcance R"
-                value={`${range.toFixed(2)} m`}
-                sub={`Q = v₀²·sen(2θ)/g · voo livre`}
-              />
-              <Readout
-                label="Altura máx H"
-                value={`${maxHeight.toFixed(2)} m`}
-              />
-              <Readout
-                label="Tempo de voo T"
-                value={`${timeOfFlight.toFixed(2)} s`}
-              />
-              <Readout
-                label="Resultado previsto"
-                value={predicted ? "cesta ✓" : preview.sim.bounces > 0 ? "fora (quique)" : "fora"}
-                sub="apenas se cruzar o aro por dentro"
-              />
             </div>
           </div>
 
@@ -613,18 +591,17 @@ export default function BasketballLab() {
               </div>
           </div>
 
+
+
           <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 md:grid-cols-5">
             <SceneStat
               label="Trajetória"
               value={scored ? "cesta" : bounces > 0 ? "com quique" : "balística"}
             />
-            <SceneStat
-              label="Quiques"
-              value={bounces === 0 ? "nenhum" : `${bounces} no aro/quadro`}
-            />
+            <SceneStat label="Alcance R" value={`${range.toFixed(2)} m`} />
+            <SceneStat label="Altura máx H" value={`${maxHeight.toFixed(2)} m`} />
+            <SceneStat label="Tempo de voo T" value={`${timeOfFlight.toFixed(2)} s`} />
             <SceneStat label="Rastro" value={`${trail.length} pontos`} />
-            <SceneStat label="Velocidade" value={`${v0.toFixed(2)} m/s`} />
-            <SceneStat label="Ângulo" value={`${angle}°`} />
           </div>
         </div>
       </div>
