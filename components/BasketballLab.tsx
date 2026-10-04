@@ -59,6 +59,15 @@ interface Point {
   y: number;
 }
 
+interface SimPoint {
+  t: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  v: number;
+}
+
 interface Sim {
   t: number;
   x: number;
@@ -136,7 +145,7 @@ function bounce(
  * velocidade refletida. A cesta é creditada ao cruzar o plano do aro por
  * dentro, nunca por encostar na rede.
  */
-function advance(sim: Sim, dt: number, onStep?: (p: Point) => void) {
+function advance(sim: Sim, dt: number, onStep?: (p: SimPoint) => void) {
   let left = dt;
   while (left > 1e-9 && !sim.done) {
     const h = Math.min(SIM_DT, left);
@@ -194,16 +203,23 @@ function advance(sim: Sim, dt: number, onStep?: (p: Point) => void) {
       sim.done = true;
     }
 
-    onStep?.(sim);
+    onStep?.({
+      t: sim.t,
+      x: sim.x,
+      y: sim.y,
+      vx: sim.vx,
+      vy: sim.vy,
+      v: Math.hypot(sim.vx, sim.vy),
+    });
   }
 }
 
 /** Roda a simulação inteira — alimenta a previsão e a linha tracejada. */
 function simulate(f: Flight) {
   const sim = createSim(f);
-  const points: Point[] = [];
+  const points: SimPoint[] = [];
   advance(sim, MAX_T, (p) => {
-    if (p.y > 0) points.push({ x: p.x, y: p.y });
+    if (p.y > 0) points.push(p);
   });
   return { sim, points };
 }
@@ -259,6 +275,23 @@ export default function BasketballLab() {
       .join("");
   }, [preview]);
 
+  const predictedTable = useMemo(() => {
+    const { points } = preview;
+    if (points.length === 0) return [] as SimPoint[];
+    const step = 0.05;
+    const rows: SimPoint[] = [];
+    let next = 0;
+    const last = points[points.length - 1].t;
+    for (let i = 0; i < points.length; i++) {
+      if (points[i].t >= next - 1e-9) {
+        rows.push(points[i]);
+        next += step;
+        if (next > last + 1e-6) break;
+      }
+    }
+    return rows;
+  }, [preview]);
+
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
   }, []);
@@ -274,7 +307,12 @@ export default function BasketballLab() {
     const delta = Math.min((now - last) / 1000, 0.05);
     lastTsRef.current = now;
 
-    advance(sim, delta);
+    advance(sim, delta, (p) => {
+      setT(p.t);
+      setFrame({ x: p.x, y: p.y });
+      setSpeed(p.v);
+      setTrail((list) => [...list, { x: p.x, y: p.y }]);
+    });
 
     if (sim.scored) setScored(true);
     if (sim.bounces > publishedRef.current) {
@@ -283,10 +321,7 @@ export default function BasketballLab() {
       setImpacts([...sim.impacts]);
     }
 
-    setT(sim.t);
-    setFrame({ x: sim.x, y: sim.y });
-    setSpeed(Math.hypot(sim.vx, sim.vy));
-    setTrail((list) => [...list, { x: sim.x, y: sim.y }]);
+    // valores atualizados via onStep
 
     if (!sim.done && sim.t < MAX_T) {
       rafRef.current = requestAnimationFrame(tick);
@@ -585,7 +620,6 @@ export default function BasketballLab() {
           </div>
 
 
-
           <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-zinc-200 bg-zinc-200 md:grid-cols-5">
             <SceneStat
               label="Trajetória"
@@ -595,6 +629,104 @@ export default function BasketballLab() {
             <SceneStat label="Altura máx H" value={`${maxHeight.toFixed(2)} m`} />
             <SceneStat label="Tempo de voo T" value={`${timeOfFlight.toFixed(2)} s`} />
             <SceneStat label="Rastro" value={`${trail.length} pontos`} />
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
+            <div className="mb-4">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                ANÁLISE / 04
+              </div>
+              <h3 className="mt-1 text-lg font-semibold">
+                Série temporal (t, x, y, v) — trajetória prevista
+              </h3>
+              <p className="mt-1 font-mono text-[9px] leading-4 text-zinc-400">
+                Valores amostrados a cada 0,05 s. v = sqrt(vx² + vy²).
+              </p>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white">
+              <table className="min-w-full divide-y divide-zinc-200 text-left font-mono text-xs">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <th className="px-3 py-2 font-medium uppercase tracking-wider text-zinc-500">
+                      t (s)
+                    </th>
+                    <th className="px-3 py-2 font-medium uppercase tracking-wider text-zinc-500">
+                      x (m)
+                    </th>
+                    <th className="px-3 py-2 font-medium uppercase tracking-wider text-zinc-500">
+                      y (m)
+                    </th>
+                    <th className="px-3 py-2 font-medium uppercase tracking-wider text-zinc-500">
+                      v (m/s)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {predictedTable.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={4}
+                        className="px-3 py-3 text-center text-zinc-400"
+                      >
+                        Defina força/ângulo para gerar a previsão.
+                      </td>
+                    </tr>
+                  ) : (
+                    predictedTable.map((p, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-1.5 text-zinc-600">
+                          {p.t.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-1.5 text-zinc-600">
+                          {p.x.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-1.5 text-zinc-600">
+                          {p.y.toFixed(2)}
+                        </td>
+                        <td className="px-3 py-1.5 text-zinc-600">
+                          {p.v.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {predictedTable.length > 0 && (
+              <div className="mt-6 space-y-4">
+                <div className="mb-2 font-mono text-[9px] uppercase tracking-wider text-zinc-400">
+                  Gráficos
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <MiniPlot
+                    title="X × t"
+                    points={predictedTable}
+                    xKey="t"
+                    yKey="x"
+                    xLabel="t (s)"
+                    yLabel="x (m)"
+                  />
+                  <MiniPlot
+                    title="Y × t"
+                    points={predictedTable}
+                    xKey="t"
+                    yKey="y"
+                    xLabel="t (s)"
+                    yLabel="y (m)"
+                  />
+                  <MiniPlot
+                    title="v × t"
+                    points={predictedTable}
+                    xKey="t"
+                    yKey="v"
+                    xLabel="t (s)"
+                    yLabel="v (m/s)"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -852,6 +984,113 @@ function SceneStat({ label, value }: { label: string; value: string }) {
     <div className="min-w-0 bg-white px-4 py-3">
       <div className="font-mono text-[8px] uppercase tracking-wider text-zinc-400">{label}</div>
       <div className="mt-1 truncate font-mono text-xs font-medium">{value}</div>
+    </div>
+  );
+}
+
+function MiniPlot({
+  title,
+  points,
+  xKey,
+  yKey,
+  xLabel,
+  yLabel,
+}: {
+  title: string;
+  points: SimPoint[];
+  xKey: keyof SimPoint;
+  yKey: keyof SimPoint;
+  xLabel: string;
+  yLabel: string;
+}) {
+  const PADDING = 36;
+  const W = 240;
+  const H = 160;
+
+  const xVals = points.map((p) => Number(p[xKey]));
+  const yVals = points.map((p) => Number(p[yKey]));
+  const xMin = Math.min(...xVals);
+  const xMax = Math.max(...xVals);
+  const yMin = Math.min(...yVals);
+  const yMax = Math.max(...yVals);
+
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+
+  const toX = (v: number) => PADDING + ((v - xMin) / xRange) * (W - PADDING * 2);
+  const toY = (v: number) => H - PADDING - ((v - yMin) / yRange) * (H - PADDING * 2);
+
+  const path = points
+    .map((p, i) => {
+      const x = Number(p[xKey]);
+      const y = Number(p[yKey]);
+      return `${i === 0 ? "M" : "L"}${toX(x).toFixed(2)} ${toY(y).toFixed(2)}`;
+    })
+    .join(" ");
+
+  const xTicks = 4;
+  const yTicks = 3;
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white p-2">
+      <div className="px-1 pb-1 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+        {title}
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full">
+        <g stroke="#e4e4e7" strokeWidth="1">
+          {Array.from({ length: yTicks + 1 }).map((_, i) => {
+            const v = yMin + (yRange * i) / yTicks;
+            const y = toY(v);
+            return <line key={i} x1={PADDING} y1={y} x2={W - PADDING} y2={y} />;
+          })}
+          {Array.from({ length: xTicks + 1 }).map((_, i) => {
+            const v = xMin + (xRange * i) / xTicks;
+            const x = toX(v);
+            return <line key={i} x1={x} y1={PADDING} x2={x} y2={H - PADDING} />;
+          })}
+        </g>
+        <line
+          x1={PADDING}
+          y1={H - PADDING}
+          x2={W - PADDING}
+          y2={H - PADDING}
+          stroke="#a1a1aa"
+          strokeWidth="1.5"
+        />
+        <line
+          x1={PADDING}
+          y1={PADDING}
+          x2={PADDING}
+          y2={H - PADDING}
+          stroke="#a1a1aa"
+          strokeWidth="1.5"
+        />
+        <path
+          d={path}
+          fill="none"
+          stroke="#09090b"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <g
+          fontFamily="var(--font-geist-mono), ui-monospace, monospace"
+          fontSize="8"
+          fill="#71717a"
+        >
+          <text x={W / 2} y={H - 6} textAnchor="middle">
+            {xLabel}
+          </text>
+          <text
+            x={8}
+            y={H / 2}
+            textAnchor="middle"
+            transform={`rotate(-90 8 ${H / 2})`}
+          >
+            {yLabel}
+          </text>
+        </g>
+      </svg>
     </div>
   );
 }
