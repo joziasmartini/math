@@ -242,6 +242,7 @@ export default function BasketballLab() {
   const [ended, setEnded] = useState(false);
   const [animating, setAnimating] = useState(false);
   const [showTrajectory, setShowTrajectory] = useState(false);
+  const [tablePage, setTablePage] = useState(0);
 
   const simRef = useRef<Sim>(createSim({ vx: 0, vy: 0 }));
   const rafRef = useRef<number | null>(null);
@@ -291,6 +292,10 @@ export default function BasketballLab() {
     }
     return rows;
   }, [preview]);
+
+  useEffect(() => {
+    setTablePage(0);
+  }, [preview, vx, vy]);
 
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
@@ -673,59 +678,100 @@ export default function BasketballLab() {
                       </td>
                     </tr>
                   ) : (
-                    predictedTable.map((p, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-1.5 text-zinc-600">
-                          {p.t.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-1.5 text-zinc-600">
-                          {p.x.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-1.5 text-zinc-600">
-                          {p.y.toFixed(2)}
-                        </td>
-                        <td className="px-3 py-1.5 text-zinc-600">
-                          {p.v.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    (() => {
+                      const pageSize = 10;
+                      const totalPages = Math.ceil(predictedTable.length / pageSize);
+                      const page = Math.min(tablePage, totalPages - 1);
+                      const start = page * pageSize;
+                      const pageRows = predictedTable.slice(start, start + pageSize);
+                      return pageRows.map((p, i) => (
+                        <tr key={start + i}>
+                          <td className="px-3 py-1.5 text-zinc-600">
+                            {p.t.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-1.5 text-zinc-600">
+                            {p.x.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-1.5 text-zinc-600">
+                            {p.y.toFixed(2)}
+                          </td>
+                          <td className="px-3 py-1.5 text-zinc-600">
+                            {p.v.toFixed(2)}
+                          </td>
+                        </tr>
+                      ));
+                    })()
                   )}
                 </tbody>
               </table>
             </div>
 
             {predictedTable.length > 0 && (
-              <div className="mt-6 space-y-4">
-                <div className="mb-2 font-mono text-[9px] uppercase tracking-wider text-zinc-400">
-                  Gráficos
+              <>
+                <div className="mt-2 flex items-center justify-between border-t border-zinc-100 pt-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500">
+                  <span>
+                    Página {Math.min(tablePage + 1, Math.ceil(predictedTable.length / 10))} de{" "}
+                    {Math.max(1, Math.ceil(predictedTable.length / 10))}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setTablePage((p) => Math.max(0, p - 1))}
+                      disabled={tablePage === 0}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Anterior
+                    </button>
+                    <button
+                      onClick={() =>
+                        setTablePage((p) =>
+                          Math.min(
+                            Math.ceil(predictedTable.length / 10) - 1,
+                            p + 1,
+                          ),
+                        )
+                      }
+                      disabled={
+                        tablePage >= Math.ceil(predictedTable.length / 10) - 1
+                      }
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Próxima
+                    </button>
+                  </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <MiniPlot
-                    title="X × t"
-                    points={predictedTable}
-                    xKey="t"
-                    yKey="x"
-                    xLabel="t (s)"
-                    yLabel="x (m)"
-                  />
-                  <MiniPlot
-                    title="Y × t"
-                    points={predictedTable}
-                    xKey="t"
-                    yKey="y"
-                    xLabel="t (s)"
-                    yLabel="y (m)"
-                  />
-                  <MiniPlot
-                    title="v × t"
-                    points={predictedTable}
-                    xKey="t"
-                    yKey="v"
-                    xLabel="t (s)"
-                    yLabel="v (m/s)"
-                  />
+
+                <div className="mt-6 space-y-4">
+                  <div className="mb-2 font-mono text-[9px] uppercase tracking-wider text-zinc-400">
+                    Gráficos
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <MiniPlot
+                      title="X × t"
+                      points={predictedTable}
+                      xKey="t"
+                      yKey="x"
+                      xLabel="t (s)"
+                      yLabel="x (m)"
+                    />
+                    <MiniPlot
+                      title="Y × t"
+                      points={predictedTable}
+                      xKey="t"
+                      yKey="y"
+                      xLabel="t (s)"
+                      yLabel="y (m)"
+                    />
+                    <MiniPlot
+                      title="v × t"
+                      points={predictedTable}
+                      xKey="t"
+                      yKey="v"
+                      xLabel="t (s)"
+                      yLabel="v (m/s)"
+                    />
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
         </div>
