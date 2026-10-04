@@ -33,7 +33,7 @@ export default function Home() {
             <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
               <span className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-4 py-2 font-mono text-[10px] uppercase tracking-wider text-zinc-500 backdrop-blur">
                 <VectorPolygon className="h-3.5 w-3.5" />
-                {vizzes.length} visualizações disponíveis
+                7 visualizações disponíveis
               </span>
             </div>
 
@@ -71,26 +71,11 @@ export default function Home() {
               </p>
             </div>
             <span className="font-mono text-[10px] uppercase tracking-wider text-zinc-400">
-              3 experimentos
+              1 experimento
             </span>
           </div>
 
           <BasketballLab />
-
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <PlaceholderCard
-              index="02"
-              title="Em desenvolvimento"
-              category="Experimento 02"
-              description="Próximos experimentos de balística e movimento chegam em breve."
-            />
-            <PlaceholderCard
-              index="03"
-              title="Em desenvolvimento"
-              category="Experimento 03"
-              description="Um espaço reservado para o terceiro experimento da seção."
-            />
-          </div>
         </section>
 
         <section className="mb-14">

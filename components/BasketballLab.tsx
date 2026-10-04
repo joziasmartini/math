@@ -397,13 +397,6 @@ export default function BasketballLab() {
 
             <div className="my-7 h-px bg-zinc-200" />
 
-            <div className="mb-5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400">
-                TRAJETÓRIA PREVISTA
-              </div>
-              <h3 className="mt-1 text-sm font-semibold">Fórmulas do lançamento</h3>
-            </div>
-
             <div className="flex items-center gap-2">
               <input
                 id="show-trajectory"
